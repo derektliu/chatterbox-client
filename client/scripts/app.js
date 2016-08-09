@@ -28,17 +28,21 @@ app.send = function(message) {
   });
 };
 
-app.fetch = function () {
+app.fetch = function (roomFilter) {
+  roomFilter = (roomFilter === undefined || roomFilter === 'lobby') ? '' : 'where={"roomname": "' + roomFilter + '" }';
+  // console.log('roomfilter', roomFilter);
+  // roomFilter = '';
   $.ajax({
   // This is the url you should use to communicate with the parse API server.
     url: this.server,
     type: 'GET',
-    data: 'string',
+    data: roomFilter + '&order=-createdAt',
     contentType: 'application/json',
     success: function (data) {
       // results = data.results;
       //console.log(data.results);
       app.grabServerMessages(data.results);
+      console.log(data.results);
       console.log('chatterbox: Message retrieved!');
     },
     error: function (data) {
@@ -56,7 +60,7 @@ app.grabServerMessages = function (serverMessages) {
   this.currentMessages = serverMessages;
   this.populateChat(this.currentMessages);
   // filter rooms when grabbing from server (default: lobby)
-  this.filterRooms(this.presentRoom);
+  //this.filterRooms(this.presentRoom);
 
 };
 
@@ -85,7 +89,11 @@ app.addMessage = function(message) {
   // function is passed a message Object
   // grab username and text from message Object (and escape all user input!! **Security**)
   var username = '<span class=username>' + _.escape(message.username) + '</span>';
+
   var text = _.escape(message.text);
+  if (text.length > 140) {
+    text = text.slice(0, 140) + '...';
+  }
 
   // If the username of message is in the current FriendsList, add 'friend' class to div
   if (this.friendsList[message.username]) {
@@ -106,11 +114,11 @@ app.addRoom = function(message) {
   // if parameter is passed as 'string', convert to object (and escape!!)
   if (typeof message === 'string') {
     message = _.escape(message);
-    message = { roomname: message};
+    message = { roomname: message };
   }
 
   if (message.roomname) {
-    message.roomname = _.escape(message.roomname.toLowerCase());
+    message.roomname = _.escape(message.roomname.toLowerCase().slice(0, 20));
 
     // add to DOM if the roomname does not already exist on the roomSelector
     if (!this.currentRooms[message.roomname]) {
@@ -121,23 +129,27 @@ app.addRoom = function(message) {
 };
 
 app.filterRooms = function(newRoom) {
-  this.clearMessages();
+  // method accepts 'string' for newRoom parameter
 
-  // if newRoom filter is not lobby, display only messages in that room
-  if (newRoom !== 'lobby') {
-    var filteredMessages = this.currentMessages.filter(function(elem) {
-      return elem.roomname === newRoom;
-    });
-  } else {
+  this.fetch(newRoom);
 
-    // if newRoom filter IS lobby, display lobby messages and also rooms with no Room Name
-    var filteredMessages = this.currentMessages.filter(function(elem) {
-      return elem.roomname === newRoom || elem.roomname === undefined;
-    });
-  }
+  // this.clearMessages();
 
-  // repopulate chat with new filtered messages
-  this.populateChat(filteredMessages);
+  // // if newRoom filter is not lobby, display only messages in that room
+  // if (newRoom !== 'lobby') {
+  //   var filteredMessages = this.currentMessages.filter(function(elem) {
+  //     return elem.roomname === newRoom;
+  //   });
+  // } else {
+
+  //   // if newRoom filter IS lobby, display lobby messages and also rooms with no Room Name
+  //   var filteredMessages = this.currentMessages.filter(function(elem) {
+  //     return elem.roomname === newRoom || elem.roomname === undefined;
+  //   });
+  // }
+
+  // // repopulate chat with new filtered messages
+  // this.populateChat(filteredMessages);
 };
 
 /*******************************************************************************/
@@ -182,12 +194,16 @@ app.handleSubmit = function(message) {
   // take username from DOM during initial prompt
   // take roomname from the current selected room
   var username = window.location.search.slice(10);
-  var roomname = $('#roomSelect').val();
+  // var roomname = $('#roomSelect').val();
+  var roomname = this.presentRoom;
+  console.log('presentRoom', this.presentRoom);
   var obj = {
     username: username,
     text: message,
     roomname: roomname
   };
+
+  console.log('obj', obj);
 
   // finally, send the message object to the server
   this.send(obj);
@@ -205,7 +221,7 @@ $(document).on('submit', '#send', function( event ) {
   }
 
   // after 100ms, refresh chats with new user message
-  setTimeout(function() { app.fetch(); }, 100);
+  setTimeout(function() { app.fetch(app.presentRoom); }, 100);
 
   event.preventDefault();
 });
@@ -218,7 +234,7 @@ $(document).on('submit', '#send', function( event ) {
 $(document).on('click', '#update', function(event) {
 
   // update chats when update button is clicked
-  app.fetch();
+  app.fetch(app.presentRoom);
 });
 
 $(document).on('change', '#roomSelect', function(event) {
@@ -239,4 +255,5 @@ $(document).on('change', '#roomSelect', function(event) {
   app.filterRooms(newRoom);
 });
 
+app.fetch();
 
