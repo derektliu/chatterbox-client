@@ -83,6 +83,9 @@ app.addMessage = function(message) {
 
 /********************************* FILTERING ROOMS ********************************/
 app.addRoom = function(message) {
+  if (typeof message === 'string') {
+    message = { roomname: message};
+  }
   if (message.roomname) {
     message.roomname = message.roomname.toLowerCase();
     if (!this.currentRooms[message.roomname]) {
@@ -133,8 +136,10 @@ app.handleSubmit = function(message) {
 
 $(document).on('submit', '#send', function( event ) {
   var message = $('input').val();
-  app.handleSubmit(message);
-  $('.textbox').val('');
+  if ( message !== '') {
+    app.handleSubmit(message);
+    $('.textbox').val('');
+  }
   event.preventDefault();
 });
 
@@ -152,7 +157,7 @@ $(document).on('change', '#roomSelect', function(event) {
   var newRoom = $('#roomSelect').val();
   if (newRoom === 'addRoom') {
     var newestRoom = prompt('What is the name of this new room?');
-    app.addRoom( { roomname: newestRoom });
+    app.addRoom(newestRoom);
     newRoom = newestRoom;
     $('#roomSelect').val(newestRoom.toLowerCase());
     console.log('test', app.currentMessages);
