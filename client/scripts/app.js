@@ -131,7 +131,7 @@ app.handleSubmit = function(message) {
     roomname: room
   };
   this.send(obj);
-  this.addMessage(obj);
+  // this.addMessage(obj);
 };
 
 $(document).on('submit', '#send', function( event ) {
@@ -140,6 +140,7 @@ $(document).on('submit', '#send', function( event ) {
     app.handleSubmit(message);
     $('.textbox').val('');
   }
+  setTimeout(function() { app.fetch(); }, 50);
   event.preventDefault();
 });
 
