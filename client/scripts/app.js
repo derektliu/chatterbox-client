@@ -51,43 +51,68 @@ app.fetch = function () {
 
 /**************************CHAT BOX*****************************************/
 app.grabServerMessages = function (serverMessages) {
+
   this.clearMessages();
   this.currentMessages = serverMessages;
   this.populateChat(this.currentMessages);
+  // filter rooms when grabbing from server (default: lobby)
   this.filterRooms(this.presentRoom);
 
 };
 
 app.populateChat = function(allMessages) {
+
+  // allMessages is Array of message Objects
+  // loop through allMessages to...
   for (var i = allMessages.length - 1; i >= 0; i--) {
+    // 1) append messages to DOM 
     this.addMessage(allMessages[i]);
+    // 2) add Room Names to room selector in DOM
     this.addRoom(allMessages[i]);
   }
+
 };
 
 app.clearMessages = function() {
+
+  // Clear all Chats on screen
   $('#chats').empty();
+
 };
 
 app.addMessage = function(message) {
-  // console.log('message', message);
-  var username = '<span class=username>' + message.username + '</span>';
+
+  // function is passed a message Object
+  // grab username and text from message Object (and escape all user input!! **Security**)
+  var username = '<span class=username>' + _.escape(message.username) + '</span>';
+  var text = _.escape(message.text);
+
+  // If the username of message is in the current FriendsList, add 'friend' class to div
   if (this.friendsList[message.username]) {
-    $('#chats').prepend('<div class="chat friend">' + username + ': ' + message.text + '</div>');
+    $('#chats').prepend('<div class="chat friend">' + username + ': ' + text + '</div>');
   } else {
-    $('#chats').prepend('<div class=chat>' + username + ': ' + message.text + '</div>');
+    // otherwise append as normal 'chat' class
+    $('#chats').prepend('<div class=chat>' + username + ': ' + text + '</div>');
   }
+
 };
 
 /*********************************************************************************/
 
 /********************************* FILTERING ROOMS ********************************/
 app.addRoom = function(message) {
+  // addRoom function can accept 'strings' and 'objects' as parameters
+
+  // if parameter is passed as 'string', convert to object (and escape!!)
   if (typeof message === 'string') {
+    message = _.escape(message);
     message = { roomname: message};
   }
+
   if (message.roomname) {
-    message.roomname = message.roomname.toLowerCase();
+    message.roomname = _.escape(message.roomname.toLowerCase());
+
+    // add to DOM if the roomname does not already exist on the roomSelector
     if (!this.currentRooms[message.roomname]) {
       this.currentRooms[message.roomname] = message.roomname;
       $('#roomSelect').append('<option value=' + message.roomname + ' class=room>' + message.roomname + '</option>');
@@ -97,10 +122,21 @@ app.addRoom = function(message) {
 
 app.filterRooms = function(newRoom) {
   this.clearMessages();
-  var filteredMessages = this.currentMessages.filter(function(elem) {
-    return elem.roomname === newRoom;
-  });
 
+  // if newRoom filter is not lobby, display only messages in that room
+  if (newRoom !== 'lobby') {
+    var filteredMessages = this.currentMessages.filter(function(elem) {
+      return elem.roomname === newRoom;
+    });
+  } else {
+
+    // if newRoom filter IS lobby, display lobby messages and also rooms with no Room Name
+    var filteredMessages = this.currentMessages.filter(function(elem) {
+      return elem.roomname === newRoom || elem.roomname === undefined;
+    });
+  }
+
+  // repopulate chat with new filtered messages
   this.populateChat(filteredMessages);
 };
 
@@ -109,38 +145,68 @@ app.filterRooms = function(newRoom) {
 /******************************* FRIENDS LIST **********************************/
 
 app.addFriend = function(newFriend) {
+  // add newFriend to the FriendsList object and replace duplicates
   this.friendsList[newFriend] = newFriend;
 };
 
 $(document).on('click', '.username', function(event) {
+
   var newFriend = $(this).text();
-  app.addFriend(newFriend);
-  // console.log($('.username'));
-  $('span:contains("' + newFriend + '")').parent().toggleClass('friend');
+
+  // if newFriend is not in our friendsList
+  if (!app.friendsList[newFriend]) {
+
+    // add friend to ourFriends Object
+    // and add 'friend' class for divs in DOM
+    app.addFriend(newFriend);
+    $('span:contains("' + newFriend + '")').parent().addClass('friend');
+
+  } else {
+
+    // otherwise, delete friend from friendsList
+    // and toggle class off for divs in DOM 
+    delete app.friendsList[newFriend];
+    $('span:contains("' + newFriend + '")').parent().removeClass('friend');
+
+  }
+
   event.preventDefault();
 });
 
 /********************************************************************************/
 
 app.handleSubmit = function(message) {
-  var user = window.location.search.slice(10);
-  var room = $('#roomSelect').val();
+  // method accepts a 'string' as parameter for message
+
+  // create object with elements
+  // take username from DOM during initial prompt
+  // take roomname from the current selected room
+  var username = window.location.search.slice(10);
+  var roomname = $('#roomSelect').val();
   var obj = {
-    username: user,
+    username: username,
     text: message,
-    roomname: room
+    roomname: roomname
   };
+
+  // finally, send the message object to the server
   this.send(obj);
-  // this.addMessage(obj);
+
 };
 
 $(document).on('submit', '#send', function( event ) {
+
+  // when the submit button is pressed,
+  // grab input from user and send to server
   var message = $('input').val();
   if ( message !== '') {
     app.handleSubmit(message);
     $('.textbox').val('');
   }
-  setTimeout(function() { app.fetch(); }, 50);
+
+  // after 100ms, refresh chats with new user message
+  setTimeout(function() { app.fetch(); }, 100);
+
   event.preventDefault();
 });
 
@@ -150,19 +216,25 @@ $(document).on('submit', '#send', function( event ) {
 // }, 3000);
 
 $(document).on('click', '#update', function(event) {
+
+  // update chats when update button is clicked
   app.fetch();
-  // console.log('testing', app.currentMessages);
 });
 
 $(document).on('change', '#roomSelect', function(event) {
+
+  // grab room name from roomselector
   var newRoom = $('#roomSelect').val();
+
+  // if user wants to add a room, create prompt and create new Room from userInput
   if (newRoom === 'addRoom') {
     var newestRoom = prompt('What is the name of this new room?');
     app.addRoom(newestRoom);
     newRoom = newestRoom;
     $('#roomSelect').val(newestRoom.toLowerCase());
-    console.log('test', app.currentMessages);
   }
+
+  // once new room is selected, change the present viewing room to new Room and filter chats
   app.presentRoom = newRoom;
   app.filterRooms(newRoom);
 });
