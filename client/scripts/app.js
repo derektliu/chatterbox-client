@@ -1,13 +1,16 @@
 var app = {
   server: 'https://api.parse.com/1/classes/messages',
   friendsList: {},
-  currentMessages: []
+  currentMessages: [],
+  presentRoom: 'lobby',
+  currentRooms: {lobby: 'lobby'}
 };
 
 app.init = function () {
-
 };
 
+
+/*************************** SERVER FUNCTIONS ********************************/
 app.send = function(message) {
   $.ajax({
   // This is the url you should use to communicate with the parse API server.
@@ -24,8 +27,8 @@ app.send = function(message) {
     }
   });
 };
-app.fetch = function () {
 
+app.fetch = function () {
   $.ajax({
   // This is the url you should use to communicate with the parse API server.
     url: this.server,
@@ -34,7 +37,7 @@ app.fetch = function () {
     contentType: 'application/json',
     success: function (data) {
       // results = data.results;
-      // console.log(data.results);
+      //console.log(data.results);
       app.grabServerMessages(data.results);
       console.log('chatterbox: Message retrieved!');
     },
@@ -44,15 +47,23 @@ app.fetch = function () {
     }
   });
 };
+/*****************************************************************************/
 
+/**************************CHAT BOX*****************************************/
 app.grabServerMessages = function (serverMessages) {
   this.clearMessages();
   this.currentMessages = serverMessages;
-  for (var i = this.currentMessages.length - 1; i >= 0; i--) {
-    this.addMessage(this.currentMessages[i]);
-  }
+  this.populateChat(this.currentMessages);
+  this.filterRooms(this.presentRoom);
+
 };
 
+app.populateChat = function(allMessages) {
+  for (var i = allMessages.length - 1; i >= 0; i--) {
+    this.addMessage(allMessages[i]);
+    this.addRoom(allMessages[i]);
+  }
+};
 
 app.clearMessages = function() {
   $('#chats').empty();
@@ -61,12 +72,38 @@ app.clearMessages = function() {
 app.addMessage = function(message) {
   // console.log('message', message);
   var username = '<span class=username>' + message.username + '</span>';
-  $('#chats').prepend('<div class=chat>' + username + ': ' + message.text + '</div>');
+  if (this.friendsList[message.username]) {
+    $('#chats').prepend('<div class="chat friend">' + username + ': ' + message.text + '</div>');
+  } else {
+    $('#chats').prepend('<div class=chat>' + username + ': ' + message.text + '</div>');
+  }
 };
 
-app.addRoom = function(roomName) {
-  $('#roomSelect').append('<option class=room>' + roomName + '</option>');
+/*********************************************************************************/
+
+/********************************* FILTERING ROOMS ********************************/
+app.addRoom = function(message) {
+  if (message.roomname) {
+    message.roomname = message.roomname.toLowerCase();
+    if (!this.currentRooms[message.roomname]) {
+      this.currentRooms[message.roomname] = message.roomname;
+      $('#roomSelect').append('<option value=' + message.roomname + ' class=room>' + message.roomname + '</option>');
+    }
+  }
 };
+
+app.filterRooms = function(newRoom) {
+  this.clearMessages();
+  var filteredMessages = this.currentMessages.filter(function(elem) {
+    return elem.roomname === newRoom;
+  });
+
+  this.populateChat(filteredMessages);
+};
+
+/*******************************************************************************/
+
+/******************************* FRIENDS LIST **********************************/
 
 app.addFriend = function(newFriend) {
   this.friendsList[newFriend] = newFriend;
@@ -75,8 +112,12 @@ app.addFriend = function(newFriend) {
 $(document).on('click', '.username', function(event) {
   var newFriend = $(this).text();
   app.addFriend(newFriend);
+  // console.log($('.username'));
+  $('span:contains("' + newFriend + '")').parent().toggleClass('friend');
   event.preventDefault();
 });
+
+/********************************************************************************/
 
 app.handleSubmit = function(message) {
   var user = window.location.search.slice(10);
@@ -93,6 +134,7 @@ app.handleSubmit = function(message) {
 $(document).on('submit', '#send', function( event ) {
   var message = $('input').val();
   app.handleSubmit(message);
+  $('.textbox').val('');
   event.preventDefault();
 });
 
@@ -103,4 +145,20 @@ $(document).on('submit', '#send', function( event ) {
 
 $(document).on('click', '#update', function(event) {
   app.fetch();
+  // console.log('testing', app.currentMessages);
 });
+
+$(document).on('change', '#roomSelect', function(event) {
+  var newRoom = $('#roomSelect').val();
+  if (newRoom === 'addRoom') {
+    var newestRoom = prompt('What is the name of this new room?');
+    app.addRoom( { roomname: newestRoom });
+    newRoom = newestRoom;
+    $('#roomSelect').val(newestRoom.toLowerCase());
+    console.log('test', app.currentMessages);
+  }
+  app.presentRoom = newRoom;
+  app.filterRooms(newRoom);
+});
+
+
