@@ -13,7 +13,6 @@ app.init = function () {
 /*************************** SERVER FUNCTIONS ********************************/
 app.send = function(message) {
   $.ajax({
-  // This is the url you should use to communicate with the parse API server.
     url: this.server,
     type: 'POST',
     data: JSON.stringify(message),
@@ -22,34 +21,71 @@ app.send = function(message) {
       console.log('chatterbox: Message sent');
     },
     error: function (data) {
-    // See: https://developer.mozilla.org/en-US/docs/Web/API/console.error
       console.error('chatterbox: Failed to send message', data);
     }
   });
 };
 
 app.fetch = function (roomFilter) {
+
   roomFilter = (roomFilter === undefined || roomFilter === 'lobby') ? '' : 'where={"roomname": "' + roomFilter + '" }';
-  // console.log('roomfilter', roomFilter);
-  // roomFilter = '';
+
   $.ajax({
-  // This is the url you should use to communicate with the parse API server.
     url: this.server,
     type: 'GET',
     data: roomFilter + '&order=-createdAt',
     contentType: 'application/json',
     success: function (data) {
-      // results = data.results;
-      //console.log(data.results);
       app.grabServerMessages(data.results);
-      console.log(data.results);
       console.log('chatterbox: Message retrieved!');
     },
     error: function (data) {
-    // See: https://developer.mozilla.org/en-US/docs/Web/API/console.error
       console.error('chatterbox: Failed to retrieve new messages', data);
     }
   });
+
+};
+
+$(document).on('click', '#update', function(event) {
+  // update chats when update button is clicked
+  app.fetch(app.presentRoom);
+});
+
+$(document).on('submit', '#send', function( event ) {
+
+  // when the submit button is pressed,
+  // grab input from user and send to server
+  var message = $('input').val();
+  if ( message !== '') {
+    app.handleSubmit(message);
+    $('.textbox').val('');
+  }
+
+  // after 100ms, refresh chats with new user message
+  setTimeout(function() { app.fetch(app.presentRoom); }, 100);
+
+  event.preventDefault();
+});
+
+app.handleSubmit = function(message) {
+  // method accepts a 'string' as parameter for message
+
+  // create object with elements
+  // take username from DOM during initial prompt
+  // take roomname from the current selected room
+  var username = window.location.search.slice(10);
+  // var roomname = $('#roomSelect').val();
+  var roomname = this.presentRoom;
+  console.log('presentRoom', this.presentRoom);
+  var obj = {
+    username: username,
+    text: message,
+    roomname: roomname
+  };
+
+  // finally, send the message object to the server
+  this.send(obj);
+
 };
 /*****************************************************************************/
 
@@ -61,7 +97,6 @@ app.grabServerMessages = function (serverMessages) {
   this.populateChat(this.currentMessages);
   // filter rooms when grabbing from server (default: lobby)
   //this.filterRooms(this.presentRoom);
-
 };
 
 app.populateChat = function(allMessages) {
@@ -104,7 +139,6 @@ app.addMessage = function(message) {
   }
 
 };
-
 /*********************************************************************************/
 
 /********************************* FILTERING ROOMS ********************************/
@@ -113,7 +147,6 @@ app.addRoom = function(message) {
 
   // if parameter is passed as 'string', convert to object (and escape!!)
   if (typeof message === 'string') {
-    message = _.escape(message);
     message = { roomname: message };
   }
 
@@ -152,6 +185,22 @@ app.filterRooms = function(newRoom) {
   // this.populateChat(filteredMessages);
 };
 
+$(document).on('change', '#roomSelect', function(event) {
+  // grab room name from roomselector
+  var newRoom = $('#roomSelect').val();
+
+  // if user wants to add a room, create prompt and create new Room from userInput
+  if (newRoom === 'addRoom') {
+    newRoom = prompt('What is the name of this new room?').toLowerCase();
+    app.addRoom(newRoom);
+    $('#roomSelect').val(newRoom);
+  }
+
+  // once new room is selected, change the present viewing room to new Room and filter chats
+  app.presentRoom = newRoom;
+  app.filterRooms(newRoom);
+});
+
 /*******************************************************************************/
 
 /******************************* FRIENDS LIST **********************************/
@@ -187,73 +236,9 @@ $(document).on('click', '.username', function(event) {
 
 /********************************************************************************/
 
-app.handleSubmit = function(message) {
-  // method accepts a 'string' as parameter for message
-
-  // create object with elements
-  // take username from DOM during initial prompt
-  // take roomname from the current selected room
-  var username = window.location.search.slice(10);
-  // var roomname = $('#roomSelect').val();
-  var roomname = this.presentRoom;
-  console.log('presentRoom', this.presentRoom);
-  var obj = {
-    username: username,
-    text: message,
-    roomname: roomname
-  };
-
-  console.log('obj', obj);
-
-  // finally, send the message object to the server
-  this.send(obj);
-
-};
-
-$(document).on('submit', '#send', function( event ) {
-
-  // when the submit button is pressed,
-  // grab input from user and send to server
-  var message = $('input').val();
-  if ( message !== '') {
-    app.handleSubmit(message);
-    $('.textbox').val('');
-  }
-
-  // after 100ms, refresh chats with new user message
-  setTimeout(function() { app.fetch(app.presentRoom); }, 100);
-
-  event.preventDefault();
-});
+app.fetch();
 
 // setInterval(function() {
 //   console.log('fetching!');
 //   console.log(app.fetch());
 // }, 3000);
-
-$(document).on('click', '#update', function(event) {
-
-  // update chats when update button is clicked
-  app.fetch(app.presentRoom);
-});
-
-$(document).on('change', '#roomSelect', function(event) {
-
-  // grab room name from roomselector
-  var newRoom = $('#roomSelect').val();
-
-  // if user wants to add a room, create prompt and create new Room from userInput
-  if (newRoom === 'addRoom') {
-    var newestRoom = prompt('What is the name of this new room?');
-    app.addRoom(newestRoom);
-    newRoom = newestRoom;
-    $('#roomSelect').val(newestRoom.toLowerCase());
-  }
-
-  // once new room is selected, change the present viewing room to new Room and filter chats
-  app.presentRoom = newRoom;
-  app.filterRooms(newRoom);
-});
-
-app.fetch();
-
