@@ -135,19 +135,19 @@ app.addChatMessage = function(message) {
   // function is passed a message Object
 
   // append username + text to chat box
-  var $chat = $('<div class ="chat" />');
+  var $chat = $('<div class="chat" />');
 
   // grab username and text from message Object (and escape all user input!! **Security**)
   message.username = _.escape(message.username);
   var username = $('<span class="username" />')
-    .text(message.username + ': ')
-    .attr('data-username', message.username)
+    .text(message.username)
     .appendTo($chat);
 
   // truncate message if longer than 140 characters
   message.text = _.escape(message.text);
   if (message.text.length > 140) { message.text = message.text.slice(0, 140) + '...'; }
-  var text = $('<span/>')
+
+  var text = $('<br><span/>')
     .text(message.text)
     .appendTo($chat);
 
@@ -176,15 +176,19 @@ app.addRoom = function(message) {
     // add to DOM if the roomname does not already exist on the roomSelector
     if (!app.currentRooms[message.roomname]) {
       app.currentRooms[message.roomname] = message.roomname;
-      app.$roomSelect.append('<option value=' + message.roomname + ' class=room>' + message.roomname + '</option>');
+
+      var $room = $('<option/>')
+        .val(message.roomname)
+        .text(message.roomname)
+        .addClass('room');
+
+      app.$roomSelect.append($room);
     }
   }
 };
 
 app.filterRooms = function(newRoom) {
   // method accepts 'string' for newRoom parameter
-
-  app.clearMessages();
 
   // if newRoom filter is not lobby, display only messages in that room
   if (newRoom !== 'lobby') {
@@ -229,6 +233,7 @@ app.addFriend = function(newFriend) {
 
 app.handleUsername = function(event) {
   var newFriend = $(this).text();
+  newFriend = _.escape(newFriend);
 
   // if newFriend is not in our friendsList
   if (!app.friendsList[newFriend]) {
