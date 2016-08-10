@@ -7,13 +7,28 @@ var app = {
 };
 
 app.init = function () {
-};
 
+  // JQuery Selectors
+  app.$main = $('#main');
+  app.$chats = $('#chats');
+  app.$textbox = $('.textbox');
+  app.$roomSelect = $('#roomSelect');
+
+  // add listeners
+  app.$main.on('click', '#update', app.handleUpdateButton);
+  app.$main.on('submit', '#send', app.handleSubmitButton);
+  app.$main.on('change', '#roomSelect', app.handleRoomSelect);
+  app.$chats.on('click', '.username', app.handleUsername);
+
+  app.fetch();
+
+  // setInterval(function() { app.fetch(); }, 5000);
+};
 
 /*************************** SERVER FUNCTIONS ********************************/
 app.send = function(message) {
   $.ajax({
-    url: this.server,
+    url: app.server,
     type: 'POST',
     data: JSON.stringify(message),
     contentType: 'application/json',
@@ -26,14 +41,11 @@ app.send = function(message) {
   });
 };
 
-app.fetch = function (roomFilter) {
-
-  roomFilter = (roomFilter === undefined || roomFilter === 'lobby') ? '' : 'where={"roomname": "' + roomFilter + '" }';
-
+app.fetch = function () {
   $.ajax({
-    url: this.server,
+    url: app.server,
     type: 'GET',
-    data: roomFilter + '&order=-createdAt',
+    data: 'order=-createdAt',
     contentType: 'application/json',
     success: function (data) {
       app.grabServerMessages(data.results);
@@ -43,29 +55,39 @@ app.fetch = function (roomFilter) {
       console.error('chatterbox: Failed to retrieve new messages', data);
     }
   });
-
 };
 
-$(document).on('click', '#update', function(event) {
+app.grabServerMessages = function (serverMessages) {
+  //add new server message to local cache
+  app.currentMessages = serverMessages;
+
+  // add any new rooms
+  app.currentMessages.forEach(app.addRoom);
+
+  // populate chats area
+  app.populateChat(app.currentMessages);
+};
+
+app.handleUpdateButton = function(event) {
   // update chats when update button is clicked
-  app.fetch(app.presentRoom);
-});
+  app.fetch();
+  event.preventDefault();
+};
 
-$(document).on('submit', '#send', function( event ) {
-
+app.handleSubmitButton = function(event) {
   // when the submit button is pressed,
   // grab input from user and send to server
-  var message = $('input').val();
+  var message = app.$textbox.val();
   if ( message !== '') {
     app.handleSubmit(message);
-    $('.textbox').val('');
+    app.$textbox.val('');
   }
 
   // after 100ms, refresh chats with new user message
-  setTimeout(function() { app.fetch(app.presentRoom); }, 100);
+  setTimeout(function() { app.fetch(); }, 100);
 
   event.preventDefault();
-});
+};
 
 app.handleSubmit = function(message) {
   // method accepts a 'string' as parameter for message
@@ -74,69 +96,67 @@ app.handleSubmit = function(message) {
   // take username from DOM during initial prompt
   // take roomname from the current selected room
   var username = window.location.search.slice(10);
-  // var roomname = $('#roomSelect').val();
-  var roomname = this.presentRoom;
-  console.log('presentRoom', this.presentRoom);
-  var obj = {
+  var roomname = app.presentRoom;
+
+  // create message object to send to server
+  var messageObj = {
     username: username,
     text: message,
     roomname: roomname
   };
 
   // finally, send the message object to the server
-  this.send(obj);
+  app.send(messageObj);
 
 };
 /*****************************************************************************/
 
 /**************************CHAT BOX*****************************************/
-app.grabServerMessages = function (serverMessages) {
 
-  this.clearMessages();
-  this.currentMessages = serverMessages;
-  this.populateChat(this.currentMessages);
-  // filter rooms when grabbing from server (default: lobby)
-  //this.filterRooms(this.presentRoom);
-};
 
 app.populateChat = function(allMessages) {
-
+  app.clearMessages();
   // allMessages is Array of message Objects
   // loop through allMessages to...
   for (var i = allMessages.length - 1; i >= 0; i--) {
     // 1) append messages to DOM 
-    this.addMessage(allMessages[i]);
-    // 2) add Room Names to room selector in DOM
-    this.addRoom(allMessages[i]);
+    if (allMessages[i].roomname === app.presentRoom) {
+      app.addChatMessage(allMessages[i]);
+    }
   }
-
 };
 
 app.clearMessages = function() {
-
   // Clear all Chats on screen
-  $('#chats').empty();
-
+  app.$chats.empty();
 };
 
-app.addMessage = function(message) {
-
+app.addChatMessage = function(message) {
   // function is passed a message Object
-  // grab username and text from message Object (and escape all user input!! **Security**)
-  var username = '<span class=username>' + _.escape(message.username) + '</span>';
 
-  var text = _.escape(message.text);
-  if (text.length > 140) {
-    text = text.slice(0, 140) + '...';
-  }
+  // append username + text to chat box
+  var $chat = $('<div class ="chat" />');
+
+  // grab username and text from message Object (and escape all user input!! **Security**)
+  message.username = _.escape(message.username);
+  var username = $('<span class="username" />')
+    .text(message.username + ': ')
+    .attr('data-username', message.username)
+    .appendTo($chat);
+
+  // truncate message if longer than 140 characters
+  message.text = _.escape(message.text);
+  if (message.text.length > 140) { message.text = message.text.slice(0, 140) + '...'; }
+  var text = $('<span/>')
+    .text(message.text)
+    .appendTo($chat);
 
   // If the username of message is in the current FriendsList, add 'friend' class to div
-  if (this.friendsList[message.username]) {
-    $('#chats').prepend('<div class="chat friend">' + username + ': ' + text + '</div>');
-  } else {
-    // otherwise append as normal 'chat' class
-    $('#chats').prepend('<div class=chat>' + username + ': ' + text + '</div>');
+  if (app.friendsList[message.username]) {
+    $chat.addClass('friend');
   }
+
+  app.$chats.prepend($chat);
 
 };
 /*********************************************************************************/
@@ -154,9 +174,9 @@ app.addRoom = function(message) {
     message.roomname = _.escape(message.roomname.toLowerCase().slice(0, 20));
 
     // add to DOM if the roomname does not already exist on the roomSelector
-    if (!this.currentRooms[message.roomname]) {
-      this.currentRooms[message.roomname] = message.roomname;
-      $('#roomSelect').append('<option value=' + message.roomname + ' class=room>' + message.roomname + '</option>');
+    if (!app.currentRooms[message.roomname]) {
+      app.currentRooms[message.roomname] = message.roomname;
+      app.$roomSelect.append('<option value=' + message.roomname + ' class=room>' + message.roomname + '</option>');
     }
   }
 };
@@ -164,42 +184,39 @@ app.addRoom = function(message) {
 app.filterRooms = function(newRoom) {
   // method accepts 'string' for newRoom parameter
 
-  this.fetch(newRoom);
+  app.clearMessages();
 
-  // this.clearMessages();
+  // if newRoom filter is not lobby, display only messages in that room
+  if (newRoom !== 'lobby') {
+    var filteredMessages = app.currentMessages.filter(function(element) {
+      return element.roomname === newRoom;
+    });
+  } else {
+    // if newRoom filter IS lobby, display lobby messages and also rooms with no Room Name
+    var filteredMessages = app.currentMessages.filter(function(element) {
+      return element.roomname === newRoom || element.roomname === undefined;
+    });
+  }
 
-  // // if newRoom filter is not lobby, display only messages in that room
-  // if (newRoom !== 'lobby') {
-  //   var filteredMessages = this.currentMessages.filter(function(elem) {
-  //     return elem.roomname === newRoom;
-  //   });
-  // } else {
-
-  //   // if newRoom filter IS lobby, display lobby messages and also rooms with no Room Name
-  //   var filteredMessages = this.currentMessages.filter(function(elem) {
-  //     return elem.roomname === newRoom || elem.roomname === undefined;
-  //   });
-  // }
-
-  // // repopulate chat with new filtered messages
-  // this.populateChat(filteredMessages);
+  // repopulate chat with new filtered messages
+  app.populateChat(filteredMessages);
 };
 
-$(document).on('change', '#roomSelect', function(event) {
+app.handleRoomSelect = function (event) {
   // grab room name from roomselector
-  var newRoom = $('#roomSelect').val();
+  var newRoom = app.$roomSelect.val();
 
   // if user wants to add a room, create prompt and create new Room from userInput
   if (newRoom === 'addRoom') {
     newRoom = prompt('What is the name of this new room?').toLowerCase();
     app.addRoom(newRoom);
-    $('#roomSelect').val(newRoom);
+    app.$roomSelect.val(newRoom);
   }
 
   // once new room is selected, change the present viewing room to new Room and filter chats
   app.presentRoom = newRoom;
   app.filterRooms(newRoom);
-});
+};
 
 /*******************************************************************************/
 
@@ -207,11 +224,10 @@ $(document).on('change', '#roomSelect', function(event) {
 
 app.addFriend = function(newFriend) {
   // add newFriend to the FriendsList object and replace duplicates
-  this.friendsList[newFriend] = newFriend;
+  app.friendsList[newFriend] = newFriend;
 };
 
-$(document).on('click', '.username', function(event) {
-
+app.handleUsername = function(event) {
   var newFriend = $(this).text();
 
   // if newFriend is not in our friendsList
@@ -232,13 +248,11 @@ $(document).on('click', '.username', function(event) {
   }
 
   event.preventDefault();
-});
+};
 
 /********************************************************************************/
 
-app.fetch();
+app.init();
 
-// setInterval(function() {
-//   console.log('fetching!');
-//   console.log(app.fetch());
-// }, 3000);
+
+

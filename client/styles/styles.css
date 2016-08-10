@@ -63,6 +63,7 @@ form input[type=text] {
     padding: 5px;
     margin-bottom: 5px;
     background-color: #eee;
+    /*visibility: hidden;*/
 }
 
 .chat .username {
@@ -87,4 +88,3 @@ form input[type=text] {
     color: #fff;
     background-color: #0090da;
 }
-
